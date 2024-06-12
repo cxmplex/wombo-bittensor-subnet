@@ -42,7 +42,7 @@ def image_stream(image: Image.Image) -> BytesIO:
 async def generate(
     gpu_semaphore: Semaphore,
     pipeline: StableDiffusionXLControlNetPipeline,
-    inputs: GenerationRequestInputs,
+    inputs,
 ) -> bytes:
     frames: list[Tensor] = []
 

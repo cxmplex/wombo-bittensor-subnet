@@ -89,8 +89,8 @@ class MinerGenerationService:
         self.gpu_semaphore = gpu_semaphore
         self.pipeline = pipeline
 
-    async def generate(self, request: GenerationRequestInputs):
-        frames = await generate(self.gpu_semaphore, self.pipeline, request)
+    async def generate(self, data):
+        frames = await generate(self.gpu_semaphore, self.pipeline, data)
         return frames
 
 class Miner:
@@ -114,9 +114,10 @@ class Miner:
         self.app = FastAPI()
 
         @self.app.post("/generate")
-        async def generate_endpoint(request: GenerationRequestInputs):
+        async def generate_endpoint(request):
             service = MinerGenerationService(self.redis, self.gpu_semaphore, self.pipeline)
-            result = await service.generate(request)
+            data = await request.json()
+            result = await service.generate(data)
             return JSONResponse(content={"frames": result})
 
         self.port = os.getenv('PORT', '8000')

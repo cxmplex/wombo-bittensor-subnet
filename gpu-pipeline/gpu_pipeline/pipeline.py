@@ -85,7 +85,7 @@ def replace_keywords_with_tau_symbol(input_string):
     return replaced_string
 
 
-def parse_input_parameters(inputs: GenerationRequestInputs, device) -> dict[str, Any]:
+def parse_input_parameters(inputs: dict, device) -> dict[str, Any]:
     input_kwargs = {
         "prompt": replace_keywords_with_tau_symbol(inputs.prompt),
         "prompt_2": inputs.prompt_2,
