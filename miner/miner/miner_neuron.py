@@ -32,7 +32,7 @@ from google.protobuf.empty_pb2 import Empty
 from neuron.protos.neuron_pb2 import MinerGenerationResponse, MinerGenerationIdentifier
 from neuron.protos.neuron_pb2_grpc import MinerServicer, add_MinerServicer_to_server
 from redis.asyncio import Redis
-
+from grpc.aio import ServicerContext
 from gpu_pipeline.pipeline import get_pipeline, get_tao_img
 from miner.image_generator import generate
 from neuron.defaults import DEFAULT_HEIGHT, DEFAULT_WIDTH, DEFAULT_STEPS, DEFAULT_GUIDANCE
@@ -53,7 +53,7 @@ class MinerGenerationService(MinerServicer):
         self.gpu_semaphore = gpu_semaphore
         self.pipeline = pipeline
 
-    async def Generate(self, request: GenerationRequestInputs) -> MinerGenerationResponse:
+    async def Generate(self, request: GenerationRequestInputs, context: ServicerContext) -> MinerGenerationResponse:
         
         frames = await generate(self.gpu_semaphore, self.pipeline, request)
 
