@@ -40,6 +40,51 @@ from neuron.neuron import BaseNeuron
 from tensor.protos.inputs_pb2 import GenerationRequestInputs
 
 
+from urllib.parse import urlparse
+
+
+def parse_redis_value(value: str | None, t: type):
+    if value is None:
+        return t()
+
+    return t(value)
+
+
+def parse_redis_uri(uri: str):
+    url = urlparse(uri)
+
+    if url.scheme == "redis":
+        ssl = False
+    elif url.scheme == "rediss":
+        ssl = True
+    else:
+        raise RuntimeError(f"Invalid Redis scheme {url.scheme}")
+
+    if url.path:
+        path_db = url.path[1:]
+
+        if not path_db:
+            db = 0
+        else:
+            db = int(path_db)
+    else:
+        db = 0
+
+    if not url.username or url.password:
+        username = url.username
+        password = url.password
+    else:
+        username = None
+        password = url.username
+
+    return {
+        "host": url.hostname,
+        "port": url.port,
+        "db": db,
+        "password": password,
+        "ssl": ssl,
+        "username": username,
+    }
 
 class MinerGenerationService(MinerServicer):
     def __init__(
@@ -68,16 +113,15 @@ class MinerGenerationService(MinerServicer):
         )
 
 
-class Miner(BaseNeuron):
-    last_metagraph_sync: int
-
+class Miner():
     def __init__(self):
-        super().__init__()
+        
+        self.device = 'cuda:0'
+        self.redis = Redis(**parse_redis_uri(os.getenv('REDIS_URI')))
         self.gpu_semaphore, self.pipeline = get_pipeline(self.device)
-
         self.pipeline.vae = None
 
-        bt.logging.info("Running warmup for pipeline")
+        print("Running warmup for pipeline")
         self.pipeline(
             prompt="Warmup",
             width=DEFAULT_WIDTH,
@@ -104,5 +148,5 @@ class Miner(BaseNeuron):
     async def run(self):
         # Start the miner's gRPC server, making it active on the network.
         await self.server.start()
-        bt.logging.info("server started")
+        print("server started")
         await self.server.wait_for_termination()
