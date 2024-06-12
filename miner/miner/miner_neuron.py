@@ -19,6 +19,8 @@
 #
 
 import asyncio
+from fastapi import FastAPI
+from starlette.responses import JSONResponse
 from asyncio import Semaphore
 from datetime import timedelta
 from hashlib import sha256
@@ -26,17 +28,12 @@ from uuid import uuid4, UUID
 import os
 
 import bittensor as bt
-import grpc
 from diffusers import StableDiffusionXLControlNetPipeline
-from google.protobuf.empty_pb2 import Empty
-from neuron.protos.neuron_pb2 import MinerGenerationResponse, MinerGenerationIdentifier
-from neuron.protos.neuron_pb2_grpc import MinerServicer, add_MinerServicer_to_server
+
 from redis.asyncio import Redis
-from grpc.aio import ServicerContext
 from gpu_pipeline.pipeline import get_pipeline, get_tao_img
 from miner.image_generator import generate
 from neuron.defaults import DEFAULT_HEIGHT, DEFAULT_WIDTH, DEFAULT_STEPS, DEFAULT_GUIDANCE
-from neuron.neuron import BaseNeuron
 from tensor.protos.inputs_pb2 import GenerationRequestInputs
 
 
@@ -86,36 +83,18 @@ def parse_redis_uri(uri: str):
         "username": username,
     }
 
-class MinerGenerationService(MinerServicer):
-    def __init__(
-        self,
-        redis: Redis,
-        gpu_semaphore: Semaphore,
-        pipeline: StableDiffusionXLControlNetPipeline,
-    ):
-        super().__init__()
+class MinerGenerationService:
+    def __init__(self, redis: Redis, gpu_semaphore: Semaphore, pipeline: StableDiffusionXLControlNetPipeline):
         self.redis = redis
         self.gpu_semaphore = gpu_semaphore
         self.pipeline = pipeline
 
-    async def Generate(self, request: GenerationRequestInputs, context: ServicerContext) -> MinerGenerationResponse:
-        
+    async def generate(self, request: GenerationRequestInputs):
         frames = await generate(self.gpu_semaphore, self.pipeline, request)
+        return frames
 
-        generation_id = uuid4()
-        frames_hash = sha256(frames).digest()
-
-        await self.redis.set(generation_id.hex, frames, ex=timedelta(minutes=15))
-
-        return MinerGenerationResponse(
-            id=MinerGenerationIdentifier(id=generation_id.bytes),
-            hash=frames_hash,
-        )
-
-
-class Miner():
+class Miner:
     def __init__(self):
-        
         self.device = 'cuda:0'
         self.redis = Redis(**parse_redis_uri(os.getenv('REDIS_URI')))
         self.gpu_semaphore, self.pipeline = get_pipeline(self.device)
@@ -132,21 +111,21 @@ class Miner():
             output_type="latent",
         )
 
-        self.server = grpc.aio.server()
+        self.app = FastAPI()
 
-        add_MinerServicer_to_server(
-            MinerGenerationService(
-                self.redis,
-                self.gpu_semaphore,
-                self.pipeline,
-            ),
-            self.server
-        )
+        @self.app.post("/generate")
+        async def generate_endpoint(request: GenerationRequestInputs):
+            service = MinerGenerationService(self.redis, self.gpu_semaphore, self.pipeline)
+            result = await service.generate(request)
+            return JSONResponse(content={"frames": result})
 
-        self.server.add_insecure_port(f"127.0.0.1:{os.getenv('PORT')}")
+        self.port = os.getenv('PORT', '8000')
 
     async def run(self):
-        # Start the miner's gRPC server, making it active on the network.
-        await self.server.start()
-        print("server started")
-        await self.server.wait_for_termination()
+        import uvicorn
+        uvicorn.run(self.app, host='127.0.0.1', port=int(self.port))
+
+# Usage example
+if __name__ == "__main__":
+    miner = Miner()
+    import asyncio
