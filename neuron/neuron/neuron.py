@@ -50,10 +50,6 @@ class BaseNeuron(ABC):
     def add_args(cls, parser):
         ...
 
-    @property
-    def block(self):
-        return ttl_get_block(self.subtensor)
-
     def __init__(self):
         self.config = config(self.add_args)
         self.check_config(self.config)
@@ -67,48 +63,4 @@ class BaseNeuron(ABC):
         # Log the configuration for reference.
         bt.logging.info(self.config)
 
-        # Build Bittensor objects
-        # These are core Bittensor classes to interact with the network.
-        bt.logging.info("Setting up bittensor objects.")
-
-        # The wallet holds the cryptographic key pairs for the miner.
-        self.wallet = bt.wallet(config=self.config)
-        bt.logging.info(f"Wallet: {self.wallet}")
-
-        # The subtensor is our connection to the Bittensor blockchain.
-        self.subtensor = bt.subtensor(config=self.config)
-        bt.logging.info(f"Subtensor: {self.subtensor}")
-
-        # The metagraph holds the state of the network, letting us know about other validators and miners.
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        bt.logging.info(f"Metagraph: {self.metagraph}")
-
-        # Check if the neuron is registered on the Bittensor network before proceeding further.
-        self.check_registered()
-
-        bt.logging.info(
-            f"Running neuron on subnet: {self.config.netuid} with using network: {self.subtensor.chain_endpoint}"
-        )
-
-        self.is_whitelisted_endpoint = select_endpoint(
-            self.config.is_hotkey_allowed_endpoint,
-            self.config.subtensor.network,
-            "https://dev-neuron-identifier.api.wombo.ai/api/is_hotkey_allowed",
-            "https://neuron-identifier.api.wombo.ai/api/is_hotkey_allowed",
-        )
-
-        bt.logging.info(f"Connecting to redis at {self.config.neuron.redis_url}")
-
         self.redis = Redis(**parse_redis_uri(self.config.neuron.redis_url))
-
-    def check_registered(self):
-        # --- Check for registration.
-        if not self.subtensor.is_hotkey_registered(
-            netuid=self.config.netuid,
-            hotkey_ss58=self.wallet.hotkey.ss58_address,
-        ):
-            bt.logging.error(
-                f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
-                f" Please register the hotkey using `btcli subnets register` before trying again"
-            )
-            exit()
