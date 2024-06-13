@@ -1,3 +1,4 @@
+import pickle
 #  The MIT License (MIT)
 #  Copyright © 2023 Yuma Rao
 #  Copyright © 2024 WOMBO
@@ -20,7 +21,7 @@
 
 import asyncio
 from fastapi import FastAPI
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from asyncio import Semaphore
 from datetime import timedelta
 from hashlib import sha256
@@ -39,6 +40,20 @@ from tensor.protos.inputs_pb2 import GenerationRequestInputs
 
 from urllib.parse import urlparse
 
+from pydantic import BaseModel
+
+
+class GenerationRequest(BaseModel):
+    prompt: str
+    prompt_2: str = None
+    width: int = 1024
+    height: int = 1024
+    num_inference_steps: int = 20
+    guidance_scale: float = 7.5
+    negative_prompt: str = None
+    negative_prompt_2: str = None
+    seed: int = None
+    controlnet_conditioning_scale: float = 2.0
 
 def parse_redis_value(value: str | None, t: type):
     if value is None:
@@ -114,17 +129,22 @@ class Miner:
         self.app = FastAPI()
 
         @self.app.post("/generate")
-        async def generate_endpoint(request):
+        async def generate_endpoint(request: GenerationRequest):
+            print("request received")
             service = MinerGenerationService(self.redis, self.gpu_semaphore, self.pipeline)
-            data = await request.json()
+            print("service made")
+            data = request.dict()
+            print(data)
             result = await service.generate(data)
-            return JSONResponse(content={"frames": result})
+            print("generated")
+            pickled_frames = pickle.dumps(result)
+            return Response(content=pickled_frames, media_type='application/octet-stream')
 
         self.port = os.getenv('PORT', '8000')
 
     async def run(self):
         import uvicorn
-        uvicorn.run(self.app, host='127.0.0.1', port=int(self.port))
+        uvicorn.run(self.app, host='0.0.0.0', port=int(self.port))
 
 # Usage example
 if __name__ == "__main__":

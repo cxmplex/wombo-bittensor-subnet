@@ -87,21 +87,21 @@ def replace_keywords_with_tau_symbol(input_string):
 
 def parse_input_parameters(inputs: dict, device) -> dict[str, Any]:
     input_kwargs = {
-        "prompt": replace_keywords_with_tau_symbol(inputs.prompt),
-        "prompt_2": inputs.prompt_2,
-        "width": inputs.width,
-        "height": inputs.height,
-        "num_inference_steps": inputs.num_inference_steps,
-        "guidance_scale": inputs.guidance_scale,
-        "negative_prompt": inputs.negative_prompt,
-        "negative_prompt_2": inputs.negative_prompt_2,
-        "controlnet_conditioning_scale": inputs.controlnet_conditioning_scale,
-        "image": get_tao_img(inputs.width, inputs.height),
+        "prompt": replace_keywords_with_tau_symbol(inputs["prompt"]),
+        "prompt_2": inputs["prompt_2"],
+        "width": inputs["width"],
+        "height": inputs["height"],
+        "num_inference_steps": inputs["num_inference_steps"],
+        "guidance_scale": inputs["guidance_scale"],
+        "negative_prompt": inputs["negative_prompt"],
+        "negative_prompt_2": inputs["negative_prompt_2"],
+        "controlnet_conditioning_scale": inputs["controlnet_conditioning_scale"],
+        "image": get_tao_img(inputs["width"], inputs["height"]),
         "output_type": "latent",
     }
 
-    if inputs.seed:
-        input_kwargs["generator"] = torch.Generator(device).manual_seed(inputs.seed)
+    if inputs["seed"]:
+        input_kwargs["generator"] = torch.Generator(device).manual_seed(inputs["seed"])
 
     return input_kwargs
 
